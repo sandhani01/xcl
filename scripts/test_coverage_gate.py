@@ -1,8 +1,10 @@
 import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
-from coverage_gate import compare, sweep_json
+from coverage_gate import compare, main, sweep_json
 
 STAGES = {
     "CS": {"total": 100, "translated": 95, "unsupported": 5, "validator_failed": 0, "panicked": 0, "timeout": 0},
@@ -66,6 +68,34 @@ class SweepJsonTests(unittest.TestCase):
     def test_raises_without_a_report(self):
         with self.assertRaises(ValueError):
             sweep_json("no json here")
+
+
+class MainTests(unittest.TestCase):
+    def setUp(self):
+        self.orig_run = subprocess.run
+
+    def tearDown(self):
+        subprocess.run = self.orig_run
+
+    def test_sweep_exit_nonzero_fails(self):
+        def fake_run(*args, **kwargs):
+            return subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="crash")
+
+        subprocess.run = fake_run
+        ret = main(["--xcl", "fake_xcl", "--rpf", "fake_rpf"])
+        self.assertEqual(ret, 2)
+
+    def test_sweep_exit_nonzero_with_update_does_not_write_baseline(self):
+        def fake_run(*args, **kwargs):
+            return subprocess.CompletedProcess(args=[], returncode=1, stdout=json.dumps({"stages": {}}), stderr="crash")
+
+        subprocess.run = fake_run
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base.json"
+            base.write_text("orig", encoding="utf-8")
+            ret = main(["--xcl", "fake_xcl", "--rpf", "fake_rpf", "--baseline", str(base), "--update"])
+            self.assertEqual(ret, 2)
+            self.assertEqual(base.read_text(encoding="utf-8"), "orig")
 
 
 if __name__ == "__main__":

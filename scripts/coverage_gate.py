@@ -69,6 +69,9 @@ def main(argv=None):
         if args.threads:
             cmd += ["--threads", str(args.threads)]
         proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(f"the sweep exited {proc.returncode}:\n{proc.stderr[-2000:]}", file=sys.stderr)
+            return 2
         try:
             run = sweep_json(proc.stdout)
         except ValueError as e:
