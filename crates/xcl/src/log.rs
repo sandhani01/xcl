@@ -55,12 +55,17 @@ pub fn init(path: Option<&Path>, level: Level, echo_stderr: bool) {
     ECHO.store(echo_stderr, Ordering::Relaxed);
     if let Some(p) = path {
         if let Some(dir) = p.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        if let Ok(f) = File::create(p) {
-            if let Ok(mut g) = FILE.lock() {
-                *g = Some(f);
+            if let Err(e) = std::fs::create_dir_all(dir) {
+                eprintln!("xcl: cannot create {}: {e}", dir.display());
             }
+        }
+        match File::create(p) {
+            Ok(f) => {
+                if let Ok(mut g) = FILE.lock() {
+                    *g = Some(f);
+                }
+            }
+            Err(e) => eprintln!("xcl: cannot open the log {}: {e}", p.display()),
         }
     }
 }

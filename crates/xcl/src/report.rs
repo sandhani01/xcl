@@ -185,7 +185,10 @@ pub fn write_final(crash: Option<String>) {
     let Some(boot) = crate::state::boot() else { return };
     let r = build();
     if let Ok(s) = serde_json::to_string_pretty(&r) {
-        let _ = std::fs::write(boot.report_path(), s);
+        let p = boot.report_path();
+        if let Err(e) = std::fs::write(&p, s) {
+            eprintln!("xcl: cannot write {}: {e}", p.display());
+        }
     }
 }
 
