@@ -1182,6 +1182,31 @@ fn gpu_valu_float_and_int() {
     }
 }
 
+#[test]
+fn gpu_fma_legacy_with_a_zero_factor_adds_plus_zero() {
+    if !gpu_ready() {
+        return;
+    }
+    const V: u64 = 256;
+    let code = prog(&[
+        ("V_FMA_LEGACY_F32", "ENC_VOP3", &[("VDST", 10), ("SRC0", V + 1), ("SRC1", V + 2), ("SRC2", V + 3)], None),
+        ("V_FMAC_LEGACY_F32", "ENC_VOP2", &[("VDST", 11), ("SRC0", V + 1), ("VSRC1", 2)], None),
+    ]);
+    let mut st = KernelState::default();
+    for r in st.vgpr.iter_mut() {
+        r[1] = f(0.0);
+        r[2] = f(f32::INFINITY);
+        r[3] = f(-0.0);
+        r[11] = f(-0.0);
+    }
+    let r = runner::run_code(&code, &st, &[]).unwrap();
+    for l in 0..64 {
+        let v = &r.vgpr[l];
+        assert_eq!(v[10], 0, "lane {l} v_fma_legacy_f32 (0, inf, -0) is +0 (0x0), not -0 (0x80000000)");
+        assert_eq!(v[11], 0, "lane {l} v_fmac_legacy_f32 (0, inf, -0) is +0 (0x0), not -0 (0x80000000)");
+    }
+}
+
 /// Output modifiers each instruction kind applies: omod on f64 (clamp stays in double
 /// precision) and on the f64 → f32 / f32 → f16 conversions, and the integer clamp (saturation) of the
 /// unsigned adds, the packed 16-bit adds and the integer dot products.
